@@ -1,0 +1,493 @@
+// Arduino-based Fire-fighting robot
+// @author Adam Santos
+// Uses OO framework by Kevin Harrington
+// Roomba-style drive base with an IR sensing camera, basic search pattern driving and a toggle for mounted fire extinguisher
+// Date modified: 12/14/18
+
+#include "ExampleRobot.h"
+#include "analogWrite.h"
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BNO055.h>
+#include <utility/imumaths.h>
+#include <DFRobotIRPosition.h>
+#include <math.h>
+
+Adafruit_BNO055 bno = Adafruit_BNO055(55);
+DFRobotIRPosition myDFRobotIRPosition;
+
+int positionX[4];     ///< Store the X position DFIR sensor
+int positionY[4];     ///< Store the Y position
+int lastWrite = 0;	//used in fastLoop() timing loop
+float angleCalibrated = 0;
+bool stage1=false;
+bool stage2=false;
+bool stage3=false;
+bool stage4=false;
+
+void printResult();
+float calcDisplacementIMU(float angle);
+bool driveStraight(float setDist, int setDir, HBridgeEncoderPIDMotor motor1, HBridgeEncoderPIDMotor motor2);
+bool turnDegrees(int set, HBridgeEncoderPIDMotor motor1, HBridgeEncoderPIDMotor motor2);
+float calcDist(HBridgeEncoderPIDMotor motor1, HBridgeEncoderPIDMotor motor2);
+bool detectFlame();
+bool centerOnFlame(HBridgeEncoderPIDMotor motor1, HBridgeEncoderPIDMotor motor2);
+bool extinguishFlame();
+
+void ExampleRobot::loop() {
+	//	Serial.println("in loop");
+	//delay(100);
+	if (esp_timer_get_time() - lastPrint > 500
+			|| esp_timer_get_time() < lastPrint // check for the wrap over case
+	) {
+		switch (state) {
+		case Startup:
+			setup();
+			state = WaitForConnect;
+			break;
+		case WaitForConnect:
+			state = readIMU;
+			break;
+		case readIMU:
+			sensors_event_t event;
+			bno.getEvent(&event);
+			Serial.print(F("Heading: "));
+			Serial.print((float)event.orientation.x);
+			Serial.println(F(""));
+			state = readIR;
+			break;
+		case readIR:
+			state = readIMU;    // loop back to start of sensors
+			break;
+		}
+	}
+	//	float count = calcDist(motor1,motor2);
+	//drive sequence
+	switch(dstate){
+	case move1:
+		stage1 = driveStraight(30, 0, motor1, motor2);
+		//		float count = motor1.getPosition();
+		//		Serial.println(count);
+		if (stage1)
+			dstate = turn1;
+		break;
+
+	case turn1:
+		stage2 = turnDegrees(90, motor1, motor2);
+		if (stage2)
+			dstate = move2;
+		break;
+
+	case move2:
+		stage3 = driveStraight(30, 90, motor1, motor2);
+		//		float count = motor1.getPosition();
+		if (stage3)
+			dstate = turn2;
+		break;
+	case turn2:
+		stage4 = turnDegrees(180, motor1, motor2);
+		break;
+
+	}
+	//	if(!stage1){
+	//		stage1 = driveStraight(30, 0, motor1, motor2);
+	//		float count = motor1.getPosition();
+	//		Serial.println(count);
+	//	}
+	//	if(stage1)
+	//		turnDegrees(90, motor1, motor2);
+
+	fastLoop();    // Run PID and wifi after State machine on all states
+
+}
+
+void ExampleRobot::setup() {
+	Serial.begin(115200);
+	//	#endif
+	//delay(100);
+	motor1.attach(MOTOR1_PWM, MOTOR1_DIR, MOTOR1_ENCA, MOTOR1_ENCB);
+	motor2.attach(MOTOR2_PWM, MOTOR2_DIR, MOTOR2_ENCA, MOTOR2_ENCB);
+	pinMode(FAN, OUTPUT);
+	digitalWrite(FAN, 1);
+
+	motor1.overrideCurrentPosition(0);
+	motor2.overrideCurrentPosition(0);
+	Serial.begin(115200);
+	Serial.println("Starting sensors...");
+
+	/* Initialise the IMU */
+	if (!bno.begin())
+	{		/* There was a problem detecting the BNO055 ... check your connections */
+		Serial.println("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
+		while (1);
+	}
+	//initialize IR sensor
+	myDFRobotIRPosition.begin();
+
+	delay(1000);
+	bno.setExtCrystalUse(true);
+	/* Check IMU and calibrate startup angle */
+	sensors_event_t event;
+	bno.getEvent(&event);
+	angleCalibrated = event.orientation.x;
+
+	Serial.println("calibration value: ");
+	Serial.print(angleCalibrated);
+
+	extinguishFlame();
+	//	driveStraight(100, 0, motor1, motor2);
+
+}
+
+void ExampleRobot::fastLoop() {
+	if (state == Startup)    // Do not run before startup
+		return;
+	//	Serial.println("in fastLoop");
+	//put path program here
+	//delay(100);
+
+	//---------------------------------------------------------
+	//		lab3 code:
+	double currentVel = motor1.calcVel();
+	//		if(currentCurrent < motor1.calcCur()){
+	//			currentCurrent = motor1.calcCur();
+	//		}
+	if ((millis()-lastWrite)>1000){
+		Serial.println("currentVel: ");
+		Serial.print(currentVel);
+		//		Serial.println("currentCurrent: ");
+		//		Serial.print(currentCurrent);
+		lastWrite = millis();
+	}
+	//	driveStraight(100, 0, motor1, motor2);
+	//	analogWrite(MOTOR1_PWM,25);
+	//	motor1.setOutput(-200);
+	//	motor2.setOutput(200);
+	//	motor1.velocityLoop(90,currentVel);
+	//	Serial.println(currentVel);
+	delay(10);
+}
+
+float mapf(float x, float in_min, float in_max, float out_min, float out_max) {
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+ExampleRobot::ExampleRobot(String * mn) {
+	pidList[0] = &motor1;
+	pidList[1] = &motor2;
+	wristPtr = NULL;
+	state = Startup;
+#if defined(	USE_WIFI)
+#if defined(USE_IMU)
+	sensor = NULL;
+#endif
+#if defined(USE_IR_CAM)
+	serverIR = NULL;
+#endif
+#endif
+	name = mn;
+}
+ExampleRobot::~ExampleRobot() {
+	// TODO Auto-generated destructor stub
+}
+void ExampleRobot::setupPIDServers(){
+	//	coms.attach(new PIDConfigureSimplePacketComsServer(numberOfPID,pidList));
+	//	coms.attach(new GetPIDData(numberOfPID,pidList));
+	//	coms.attach(new GetPIDConfigureSimplePacketComsServer(numberOfPID,pidList));
+
+}
+void ExampleRobot::runGameControl() {
+#if defined(USE_GAME_CONTOL)
+	control.readData(); // Read inputs and update maps
+
+	float Servo1Val = mapf((float) control.values[1], 0.0, 255.0, -15.0, 15.0);
+	float Servo3Val = mapf((float) control.values[0], 0.0, 255.0, -60.0, 60.0); // z button
+	int panVal = map(control.values[2], 0, 255, 35, 148);
+	int jawVal = map(control.values[5] > 0 ? 0 : // Upper button pressed
+			(control.values[18] > 0 ? 255 : // Lower button pressed
+					128) //neither pressed
+					, 0, 255, 80, 140);
+	int tiltVal = map(control.values[3], 0, 255, 24, 120); // z button
+	panEyes.write(panVal);
+	tiltEyes.write(tiltVal);
+	jaw.write(jawVal);
+	wristPtr->setTarget(Servo1Val, Servo3Val);
+
+#endif
+
+}
+void ExampleRobot::printAll() {
+	if (PRINTROBOTDATA) {
+		//			Serial.println(
+		//					" Pan  = " + String(panVal) + " tilt = " + String(tiltVal));
+		//		Serial.println(
+		//				" Angle of A = " + String(wristPtr->getA()) + " Angle of B = "
+		//						+ String(wristPtr->getB()));
+		//			Serial.println(
+		//					" Tick of L = " + String((int32_t) motor1.getPosition())
+		//							+ " Angle of R = "
+		//							+ String((int32_t) motor2.getPosition()));
+		//			for (int i = 0; i < WII_VALUES_ARRAY_SIZE; i++) {
+		//				Serial.println(
+		//						"\tVal " + String(i) + " = "
+		//								+ String((uint8_t) control.values[i]));
+		//			}
+		//
+
+	}
+
+	//	  for (int i=0; i<4; i++) {
+	Serial.println("IR data: ");
+	Serial.print(positionX[0]);
+	Serial.print(",");
+
+	Serial.print(positionY[0]);
+	Serial.print(";");
+	//	  }
+
+	Serial.println();
+}
+void printResult()
+{
+	//  for (int i=0; i<4; i++) {
+	Serial.print("Flame position: ");
+	Serial.print(positionX[0]);
+	Serial.print(",");
+
+	Serial.print(positionY[0]);
+	Serial.print(";");
+	//  }
+	//look to see if we get any secondary hotspots
+	if (positionX[1]<1023){
+		Serial.println("Warning! Second flame coordinate present!");
+	}
+	Serial.println();
+}
+
+//returns true if IR camera detects any hot spots
+bool detectFlame(){
+	/* Check IR */
+	myDFRobotIRPosition.requestPosition();
+	if (myDFRobotIRPosition.available()) {
+		for (int i = 0; i < 4; i++) {
+			positionX[i] = myDFRobotIRPosition.readX(i);
+			positionY[i] = myDFRobotIRPosition.readY(i);
+		}
+	}
+
+	if ((positionX[0]<1023)||(positionY[0]<1023)){
+		Serial.println("Flame detected!");
+		return true;
+	}
+	else return false;
+}
+
+bool extinguishFlame(){
+	digitalWrite(FAN, LOW);
+	delay(1000);
+	digitalWrite(FAN, HIGH);
+	return true;
+}
+
+//returns displacement of IMU compared with a reference angle
+//angle input should be a value measured from the IMU at startup when orientied correctly
+float calcDisplacementIMU(float angle){
+	/* Check IMU */
+	sensors_event_t event;
+	bno.getEvent(&event);
+
+	//return difference in angles
+	double displacement = angle - event.orientation.x - angleCalibrated;
+
+	if (displacement<-180){
+
+	}
+	return displacement;
+}
+
+//uses x-coordinate of the value returned from the IR sensor to turn to robot to center on the flame
+//then checks if the building it is looking at is close or far away
+bool centerOnFlame(HBridgeEncoderPIDMotor motor1, HBridgeEncoderPIDMotor motor2){
+
+	/* Check IR */
+	myDFRobotIRPosition.requestPosition();
+	if (myDFRobotIRPosition.available()) {
+		for (int i = 0; i < 4; i++) {
+			positionX[i] = myDFRobotIRPosition.readX(i);
+			positionY[i] = myDFRobotIRPosition.readY(i);
+		}
+	}
+	//use a while loop? while X!=0?
+	if (abs(positionX[0]-511)<10){
+		motor1.setOutput(0);
+		motor2.setOutput(0);
+	}
+	else if ((positionX[0]<511)){
+		motor1.setOutput(10);
+		motor2.setOutput(-10);
+	}
+	else if ((positionX[0]>511)){
+		motor1.setOutput(-10);
+		motor2.setOutput(10);
+	}
+
+	int opticalRead = analogRead(12);
+	if (opticalRead>1600)
+		return true;
+	else return false;
+}
+
+bool driveStraight(float setDist, int setDir, HBridgeEncoderPIDMotor motor1, HBridgeEncoderPIDMotor motor2){
+	float calcDist1 = calcDist(motor1,motor2);
+	if(calcDist1<setDist){
+		sensors_event_t event;
+		bno.getEvent(&event);
+		int offset = event.orientation.x;
+
+		offset = calcDisplacementIMU(setDir);
+		Serial.println("in driveStraight, offset = " );
+		Serial.print(offset);
+
+		if(offset>180){
+			offset=offset-360;
+		}
+
+		if(offset>50){
+			offset = 50;
+		}
+		if(offset<-50){
+			offset = -50;
+		}
+		if ((offset)>setDir){
+			//			Serial.println("in offset>0, offset = " );
+			//			Serial.print(offset);
+
+			motor1.setOutput(50);
+			motor2.setOutput((int)180+offset);
+		}
+		if ((offset)<setDir){
+			//			Serial.println("in offset<0, offset = " );
+			//			Serial.print(offset);
+
+			motor1.setOutput((int)180+offset);
+			motor2.setOutput(50);
+		}
+		if (offset==0){
+			//			Serial.println("in (offset)==0), offset = " );
+			//			Serial.print(offset);
+
+			motor2.setOutput((int)180);
+			motor1.setOutput((int)180);
+		}
+		delay(100);
+		/*
+		if (calcDisplacementIMU(offset)<0){
+			Serial.println("in offset<0, offset = " );
+			Serial.print(offset);
+
+			motor1.setOutput((int)200+offset);
+			motor2.setOutput((int)200);
+		}
+		if (calcDisplacementIMU(offset)>0){
+			Serial.println("in (offset)>0), offset = " );
+			Serial.print(offset);
+
+			motor2.setOutput((int)200+offset);
+			motor1.setOutput((int)200);
+		}
+		if (calcDisplacementIMU(offset)==0){
+			Serial.println("in (offset)==0), offset = " );
+			Serial.print(offset);
+
+			motor2.setOutput((int)200);
+			motor1.setOutput((int)200);
+		}*/
+	}
+	if((setDist-calcDist1)<=0){
+		motor1.setOutput(0);
+		motor2.setOutput(0);
+		return true;
+	}
+	else return false;
+}
+
+bool turnDegrees(int set, HBridgeEncoderPIDMotor motor1, HBridgeEncoderPIDMotor motor2){
+
+	sensors_event_t event;
+	bno.getEvent(&event);
+	int offset = ((int)event.orientation.x);
+	float const pi= 3.14;
+
+	if(offset>=180)
+		offset -=180;
+	else if(offset<180){
+		offset+=180;
+	}
+	//	Serial.println("Difference: " + String(abs(offset-set)));
+	//	Serial.println("Offset: " + String(offset));
+	//	Serial.println("Set: " + String(set));
+	if(abs(offset-set-180)<3){
+		Serial.println("Stopped");
+		motor1.setOutput(0);
+		motor2.setOutput(0);
+		return true;
+	}
+	else if(offset<set){
+		//		digitalWrite(MOTOR1_DIR, LOW);
+		//		digitalWrite(MOTOR2_DIR, HIGH);
+		motor1.setOutput((int)(75*sin(((2*pi/360)*(set-offset)))));
+		motor2.setOutput(-(int)(75*sin(((2*pi/360)*(set-offset)))));
+		//					if(abs(offset-set)>10){
+		//						motor1.setOutput(5);
+		//						motor2.setOutput(-5);
+		//		}
+		return false;
+	}
+	else if(offset>set){
+		//		digitalWrite(MOTOR1_DIR, HIGH);
+		//		digitalWrite(MOTOR2_DIR, LOW);
+		motor1.setOutput(-(int)(75*sin(((2*pi/360)*(set-offset)))));
+		motor2.setOutput((int)(75*sin((2*pi/360)*(set-offset))));
+		//					if(abs(offset-set)>10){
+		//						motor1.setOutput(-5);
+		//						motor2.setOutput(5);
+		//		}
+		return false;
+	}
+	else return false;
+	/*
+	else if(offset<set){
+		digitalWrite(MOTOR1_DIR, LOW);
+		analogWrite(MOTOR1_PWM,((int)(45*sin(pi*((2*pi/360)*(set-offset)))))+20);
+		digitalWrite(MOTOR2_DIR, HIGH);
+		analogWrite(MOTOR2_PWM,((int)(45*sin(pi*((2*pi/360)*(set-offset)))))+20);
+		//					if(abs(offset-set)>10){
+		//						motor1.setOutput(5);
+		//						motor2.setOutput(-5);
+		//		}
+	}
+	else if(offset>set){
+		digitalWrite(MOTOR1_DIR, HIGH);
+		digitalWrite(MOTOR2_DIR, LOW);
+		analogWrite(MOTOR1_PWM,((int)(45*sin(pi*((2*pi/360)*(set-offset))))+20));
+		analogWrite(MOTOR2_PWM,(int)(45*sin(pi*(2*pi/360)*(set-offset)))+20);
+		//					if(abs(offset-set)>10){
+		//						motor1.setOutput(-5);
+		//						motor2.setOutput(5);
+		//		}
+	}*/
+}
+
+float calcDist(HBridgeEncoderPIDMotor motor1, HBridgeEncoderPIDMotor motor2){
+	//	sensors_event_t event;
+	//	bno.getEvent(&event);
+	//	double dist = event.distance; //double integration of acceleration data
+
+	//	motor1.overrideCurrentPosition(0);
+	//	motor2.overrideCurrentPosition(0);
+	float ticksPerInch = 1481.6;
+
+	double dist = motor1.getPosition()/ticksPerInch; //distance in inches from motor1 encoder (motor 1 and 2 should be the same)
+	//	double dist = ticksPerInch*motor2.getPosition();
+	return dist;
+}
+
