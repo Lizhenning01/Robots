@@ -1,1 +1,5 @@
 Using a 3-rotational joint arm and a mounted camera, views the robot's workspace and sorts objects based on their color using MATLAB to calculate required kinematics.
+
+MATLAB code for kinematics, vision, and arm setpoint generation (in terms of encoder values)
+Sends packet to C++ Nucleo driver code which runs the arm with PID
+@authors: Adam Santos, Anqi Shen and Kristen Andonie
