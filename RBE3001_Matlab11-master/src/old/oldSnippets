@@ -1,0 +1,54 @@
+%old chunks of lab1.m that we don't need right now but might not want to
+%delete:
+%-----------------------
+    %     % 2 config of points
+    %     viaPts = [deg2Enc(ikin(175,0,-34.28));
+    %         %deg2Enc(ikin(117.3, -82.63,-44.83));
+    %         deg2Enc(ikin(117.3, 82.63,-44.83));
+    %         deg2Enc(ikin(175,0,-34.28))];
+    %----------------------------
+    %     %lab2 cubic polynomial
+    %     %     viaPts = [
+    %     %         pointMap(10,0,1,0,0,0,enc2deg(235)),pointMap(10,0,1,0,0,0,0),pointMap(10,0,1,0,0,0,enc2deg(310));
+    %     %         pointMap(10,0,1,0,0,enc2deg(235),enc2deg(-235)),pointMap(10,0,1,0,0,0,0),pointMap(10,0,1,0,0,enc2deg(310),enc2deg(310));
+    %     %         pointMap(10,0,1,0,0,enc2deg(-235),0),pointMap(10,0,1,0,0,0,0),pointMap(10,0,1,0,0,enc2deg(310),0)];
+    %
+    %---------------------------
+            %     for x = 0:3
+        %         packet((x*3)+1)=0.1;
+        %         packet((x*3)+2)=0;
+        %         packet((x*3)+3)=0;
+        %     end
+        %-----------------------------------------
+%         disp("before DEBUG");
+%         if DEBUG
+%             disp('Sent Packet:');
+%             disp(packet);
+%             disp('Received Packet:');
+%             disp(returnPacket);
+%         end
+%------------------------------------
+    %     3 points that make a triangle across 3 axes'
+    %PROBS: x axis is positive towards the axis of the robot
+    %entire workspace seems skewed or something
+    %need to better account for the bars on the frame
+    %the points all below should be along x=66, a few of them are all over the place
+%     viaPts = [
+%         deg2Enc(ikin(66,   -125,    0   )); % this location is outside bounds
+%         deg2Enc(ikin(66,   -125,    140 ));
+%         deg2Enc(ikin(66,   -125,    200  ));
+%         deg2Enc(ikin(66,   -125,    250  )); % caps out the z-axis
+%         deg2Enc(ikin(66,   -100,    150  ));
+%         deg2Enc(ikin(66,   -75,    100  ));
+%         deg2Enc(ikin(66,   -50,    50  ));
+% %         deg2Enc(ikin(270,   125,    300   ))];  % can't reach this location
+%         deg2Enc(ikin(66,   125,    30   ))];  
+% -----------------------------------------
+% Draw a star   
+%             viaPts = [
+%                 quintic_pointMap(10,0,1,0,0,250,222,0,0),quintic_pointMap(10,0,1,0,0,-4.6,64,0,0),quintic_pointMap(10,0,1,0,0,203,55,0,0);
+%                 quintic_pointMap(10,0,1,0,0,222,220.3,0,0),quintic_pointMap(10,0,1,0,0,64,-100,0,0),quintic_pointMap(10,0,1,0,0,55,148,0,0);
+%                 quintic_pointMap(10,0,1,0,0,220,230.3,0,0),quintic_pointMap(10,0,1,0,0,-100,73,0,0),quintic_pointMap(10,0,1,0,0,148,148,0,0);
+%                 quintic_pointMap(10,0,1,0,0,230,220.3,0,0),quintic_pointMap(10,0,1,0,0,73,-70,0,0),quintic_pointMap(10,0,1,0,0,148,48,0,0);
+%                 quintic_pointMap(10,0,1,0,0,220,250.3,0,0),quintic_pointMap(10,0,1,0,0,70,-4.6,0,0),quintic_pointMap(10,0,1,0,0,48,203,0,0);
+%                 quintic_pointMap(10,0,1,0,0,250,175,0,0),quintic_pointMap(10,0,1,0,0,-4.6,0,0,0),quintic_pointMap(10,0,1,0,0,203,0,0,0)];
