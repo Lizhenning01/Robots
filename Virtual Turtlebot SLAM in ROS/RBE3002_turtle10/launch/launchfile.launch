@@ -1,0 +1,58 @@
+<launch>
+<!--  from practice_maze.launch-->
+  <!-- Arguments -->
+  <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
+  <arg name="x_pos" default="0.40"/>
+  <arg name="y_pos" default="0.4"/>
+  <arg name="z_pos" default="0.05"/>
+  <arg name="maze" default="maze2"/>
+
+  <node pkg="tf" type="static_transform_publisher" name="camera_tf" args="-1.95 -0.55 2.0 -1.58 0 -1.58 /odom /camera_link 100"/>
+
+  <env name="GAZEBO_MODEL_PATH" value="$(find RBE3002_template)/models:$(optenv GAZEBO_MODEL_PATH"/>
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find RBE3002_template)/worlds/$(arg maze).world"/>
+    <arg name="paused" value="false"/>
+    <arg name="use_sim_time" value="true"/>
+    <arg name="gui" value="false"/>
+    <arg name="headless" value="true"/>
+    <arg name="debug" value="false"/>
+  </include>
+
+  <param name="robot_description" command="$(find xacro)/xacro.py $(find turtlebot3_description)/urdf/turtlebot3_$(arg model).urdf.xacro" />
+
+  <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-urdf -model turtlebot3_burger -x $(arg x_pos) -y $(arg y_pos) -z $(arg z_pos) -param robot_description" />
+
+<!--  from practice_exploration.launch-->
+  <!--gmapping. We don't need mapserver if gmapping is running -->
+  <include file="$(find turtlebot3_slam)/launch/turtlebot3_slam.launch" />
+
+  <!-- AMCL -->
+  <include file="$(find turtlebot3_navigation)/launch/amcl.launch"/>
+
+<!--  Our nodes -->
+  <node name="path_planner" pkg="rbe3002_turtle10" type="path_planner.py" output='screen'/>
+  <node name="frontier_exploration" pkg="rbe3002_turtle10" type="frontier_exploration.py" output='screen'/>
+  <node name="client" pkg="rbe3002_turtle10" type="client.py" output='screen'/>
+
+<!--  unused-->
+    <!-- move_base -->
+<!--  <arg name="cmd_vel_topic" default="/cmd_vel" />-->
+<!--  <arg name="odom_topic" default="odom" />-->
+<!--  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">-->
+<!--    <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS" />-->
+
+<!--    <rosparam file="$(find turtlebot3_navigation)/param/costmap_common_params_$(arg model).yaml" command="load" ns="global_costmap" />-->
+<!--    <rosparam file="$(find turtlebot3_navigation)/param/costmap_common_params_$(arg model).yaml" command="load" ns="local_costmap" />-->
+<!--    <rosparam file="$(find turtlebot3_navigation)/param/local_costmap_params.yaml" command="load" />-->
+<!--    <rosparam file="$(find turtlebot3_navigation)/param/global_costmap_params.yaml" command="load" />-->
+<!--    <rosparam file="$(find turtlebot3_navigation)/param/move_base_params.yaml" command="load" />-->
+<!--    <rosparam file="$(find turtlebot3_navigation)/param/dwa_local_planner_params_$(arg model).yaml" command="load" />-->
+
+<!--    <remap from="cmd_vel" to="$(arg cmd_vel_topic)"/>-->
+<!--    <remap from="odom" to="$(arg odom_topic)"/>-->
+<!--  </node>-->
+  <!-- Turtlebot3  -->
+<!--  <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch" />-->
+
+</launch>
