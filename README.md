@@ -12,7 +12,7 @@ Robot Arm Color Sort:
 the C++ driver for arm operation
 
 Virtual Turtlebot SLAM in ROS:
-- Simulates a Turtlebot3 in Gazebo and RViz equipped with a LIDAR for environment sensing. Procedurally explores and maps as follows:
+Simulates a Turtlebot3 in Gazebo and RViz equipped with a LIDAR for environment sensing. Procedurally explores and maps as follows:
 - Robot uses available distance information to synthesize a model of the world
 - Using A*, travels towards a visible point closest to predetermined goal while avoiding obstacles
 - Updates map after pathfinding, travels again towards destination
