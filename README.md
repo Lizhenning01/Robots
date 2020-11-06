@@ -11,7 +11,7 @@ Robot Arm Color Sort:
 - MATLAB scripts to search workspace for different color objects, set world coordinate waypoints, calculate kinematics and provide waypoints to 
 the C++ driver for arm operation
 
-Virtual Turtlebot SLAM:
+Virtual Turtlebot SLAM in ROS:
 - Simulates a Turtlebot3 in Gazebo and RViz equipped with a LIDAR for environment sensing. Procedurally explores and maps as follows:
 - Robot uses available distance information to synthesize a model of the world
 - Using A*, travels towards a visible point closest to predetermined goal while avoiding obstacles
