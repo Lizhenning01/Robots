@@ -1,0 +1,7 @@
+Virtual Turtlebot SLAM in ROS: Simulates a Turtlebot3 in Gazebo and RViz equipped with a LIDAR for environment sensing. Procedurally explores and maps as follows:
+
+    Robot uses available distance information to synthesize a model of the world
+    Using A*, travels towards a visible point closest to predetermined goal while avoiding obstacles
+    Updates map after pathfinding, travels again towards destination
+    If location is equidistant from destination or enclosed by walls, A* will try alternate paths
+    Once location is discovered and reached, travels back to starting location
